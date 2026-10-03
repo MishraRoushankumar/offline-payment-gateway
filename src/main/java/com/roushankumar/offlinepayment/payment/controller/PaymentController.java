@@ -1,4 +1,4 @@
-package com.roushankumar.offlinepayment.payment.comtroller;
+package com.roushankumar.offlinepayment.payment.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

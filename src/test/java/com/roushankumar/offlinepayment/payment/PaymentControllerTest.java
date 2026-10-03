@@ -29,75 +29,111 @@ import tools.jackson.databind.ObjectMapper;
 @Transactional
 class PaymentControllerTest {
 
-  @Autowired
-  private MockMvc mockMvc;
+    @Autowired
+    private MockMvc mockMvc;
 
-  @Autowired
-  private ObjectMapper objectMapper;
+    @Autowired
+    private ObjectMapper objectMapper;
 
-  @Autowired
-  private AccountRepository accountRepository;
+    @Autowired
+    private AccountRepository accountRepository;
 
-  @BeforeEach
-  void setUp() {
-    Account sender = new Account();
-    sender.setAccountNumber("API-100001");
-    sender.setHolderName("API Sender");
-    sender.setBalance(new BigDecimal("1000.00"));
-    sender.setCurrency("INR");
-    sender.setStatus(AccountStatus.ACTIVE);
+    @BeforeEach
+    void setUp() {
+        Account sender = new Account();
+        sender.setAccountNumber("API-100001");
+        sender.setHolderName("API Sender");
+        sender.setBalance(new BigDecimal("1000.00"));
+        sender.setCurrency("INR");
+        sender.setStatus(AccountStatus.ACTIVE);
 
-    Account receiver = new Account();
-    receiver.setAccountNumber("API-100002");
-    receiver.setHolderName("API Receiver");
-    receiver.setBalance(new BigDecimal("500.00"));
-    receiver.setCurrency("INR");
-    receiver.setStatus(AccountStatus.ACTIVE);
+        Account receiver = new Account();
+        receiver.setAccountNumber("API-100002");
+        receiver.setHolderName("API Receiver");
+        receiver.setBalance(new BigDecimal("500.00"));
+        receiver.setCurrency("INR");
+        receiver.setStatus(AccountStatus.ACTIVE);
 
-    accountRepository.save(sender);
-    accountRepository.save(receiver);
-  }
+        accountRepository.save(sender);
+        accountRepository.save(receiver);
+    }
 
-  @Test
-  void shouldCreatePayment() throws Exception {
-    PaymentRequest request = new PaymentRequest(
-        "API-100001",
-        "API-100002",
-        new BigDecimal("250.00"),
-        "api-idem-001");
+    @Test
+    void shouldCreatePayment() throws Exception {
+        PaymentRequest request = new PaymentRequest(
+                "API-100001",
+                "API-100002",
+                new BigDecimal("250.00"),
+                "api-idem-001");
 
-    mockMvc.perform(post("/api/payments")
-        .with(csrf())
-        .with(user("test-user"))
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(request)))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.transactionId").isNotEmpty())
-        .andExpect(jsonPath("$.senderAccountNumber")
-            .value("API-100001"))
-        .andExpect(jsonPath("$.receiverAccountNumber")
-            .value("API-100002"))
-        .andExpect(jsonPath("$.amount")
-            .value(250.00))
-        .andExpect(jsonPath("$.currency")
-            .value("INR"))
-        .andExpect(jsonPath("$.status")
-            .value("COMPLETED"));
-  }
+        mockMvc.perform(post("/api/payments")
+                .with(csrf())
+                .with(user("test-user"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.transactionId").isNotEmpty())
+                .andExpect(jsonPath("$.senderAccountNumber")
+                        .value("API-100001"))
+                .andExpect(jsonPath("$.receiverAccountNumber")
+                        .value("API-100002"))
+                .andExpect(jsonPath("$.amount")
+                        .value(250.00))
+                .andExpect(jsonPath("$.currency")
+                        .value("INR"))
+                .andExpect(jsonPath("$.status")
+                        .value("COMPLETED"));
+    }
 
-  @Test
-  void shouldRejectInvalidRequest() throws Exception {
-    PaymentRequest request = new PaymentRequest(
-        "",
-        "API-100002",
-        BigDecimal.ZERO,
-        "");
+    @Test
+    void shouldRejectInvalidRequest() throws Exception {
+        PaymentRequest request = new PaymentRequest(
+                "",
+                "API-100002",
+                BigDecimal.ZERO,
+                "");
 
-    mockMvc.perform(post("/api/payments")
-        .with(csrf())
-        .with(user("test-user"))
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(objectMapper.writeValueAsString(request)))
-        .andExpect(status().isBadRequest());
-  }
+        mockMvc.perform(post("/api/payments")
+                .with(csrf())
+                .with(user("test-user"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldRejectPaymentWhenBalanceIsInsufficient() throws Exception {
+        PaymentRequest request = new PaymentRequest(
+                "API-100001",
+                "API-100002",
+                new BigDecimal("999999.00"),
+                "api-idem-insufficient");
+
+        mockMvc.perform(post("/api/payments")
+                .with(csrf())
+                .with(user("test-user"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andDo(result -> System.out.println(
+                        result.getResponse().getContentAsString()));
+    }
+
+    @Test
+    void shouldRejectPaymentWhenAccountDoesNotExist() throws Exception {
+        PaymentRequest request = new PaymentRequest(
+                "API-999999",
+                "API-100002",
+                new BigDecimal("250.00"),
+                "api-idem-account-not-found");
+
+        mockMvc.perform(post("/api/payments")
+                .with(csrf())
+                .with(user("test-user"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Sender or receiver account not found"));
+    }
 }
